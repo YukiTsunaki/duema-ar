@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>デュエマサポーター</title>
+    <!-- A-Frame & AR.js -->
+    <script src="https://aframe.io/releases/1.2.0/aframe.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
+    <style>
+      #ui-panel {
+        position: fixed;
+        bottom: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 90%;
+        max-width: 420px;
+        background: rgba(20, 24, 35, 0.9);
+        color: #fff;
+        padding: 12px 16px;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+        z-index: 1000;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font-size: 13px;
+      }
+      .btn-group {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+      button {
+        flex: 1;
+        padding: 8px 4px;
+        border: 1px solid #4a5568;
+        border-radius: 6px;
+        background: #2d3748;
+        color: #fff;
+        font-size: 11px;
+        cursor: pointer;
+      }
+      button.active {
+        background: #3182ce;
+        border-color: #63b3ed;
+        font-weight: bold;
+      }
+      .link-btn {
+        display: block;
+        text-align: center;
+        background: #e53e3e;
+        color: white;
+        text-decoration: none;
+        padding: 6px;
+        border-radius: 6px;
+        margin-top: 8px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body style="margin: 0; overflow: hidden;">
+    <!-- 操作UI（盤面センシング・用語切り替えのモック） -->
+    <div id="ui-panel">
+      <div><b>【デュエマサポーター】盤面状況 / 用語選択</b></div>
+      <div class="btn-group">
+        <button id="btn-st" class="active" onclick="switchTerm('st')">S・トリガー</button>
+        <button id="btn-gs" onclick="switchTerm('gs')">G・ストライク</button>
+        <button id="btn-blocker" onclick="switchTerm('blocker')">ブロッカー</button>
+      </div>
+      <a id="rule-link" class="link-btn" href="https://dm.takaratomy.co.jp/rule/" target="_blank">
+        公式ルール・裁定ページを開く ↗
+      </a>
+    </div>
+
+    <!-- AR空間 -->
+    <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
+      <!-- デフォルトの Hiro マーカーを使用 -->
+      <a-marker preset="hiro">
+        <!-- カード本体の位置を示す枠（カードに被せないための基準点） -->
+        <a-plane position="0 0 0" rotation="-90 0 0" width="1" height="1.4" color="#718096" opacity="0.3"></a-plane>
+
+        <!-- カードの右側にずらして表示する情報ウィンドウ (position="1.4 0.2 0") -->
+        <a-entity id="info-panel" position="1.4 0.1 0" rotation="-90 0 0">
+          <!-- 背景パネル -->
+          <a-plane width="1.6" height="1.2" color="#1a202c" opacity="0.9"></a-plane>
+          
+          <!-- タイトル -->
+          <a-text id="ar-title" value="シールド・トリガー" position="-0.7 0.4 0.02" width="2" color="#63b3ed"></a-text>
+          
+          <!-- 詳細テキスト -->
+          <a-text id="ar-desc" 
+                  value="相手のシールドブレイクによって\n手札に加える時、コストを\n支払わずにすぐ使ってよい。\n(相手攻撃終了ステップ前に処理)" 
+                  position="-0.7 0.05 0.02" width="1.4" color="#ffffff" line-height="55">
+          </a-text>
+
+          <!-- 優先度・処理順タグ -->
+          <a-plane position="0 -0.4 0.02" width="1.4" height="0.2" color="#2b6cb0">
+            <a-text id="ar-priority" value="処理順: G・ストライク宣言の後" align="center" width="1.5" color="#ffffff"></a-text>
+          </a-plane>
+        </a-entity>
+      </a-marker>
+
+      <a-entity camera></a-entity>
+    </a-scene>
+
+    <script>
+      const terms = {
+        st: {
+          title: "S・トリガー",
+          desc: "相手のシールドブレイクで\n手札に加える時、コストを\n支払わず直ちに使用できる。\n※呪文/クリーチャー共通",
+          priority: "処理順: G・ストライク宣言の直後",
+          url: "https://dm.takaratomy.co.jp/rule/qa/"
+        },
+        gs: {
+          title: "G・ストライク",
+          desc: "相手のシールドブレイクで\n相手に見せることで、相手の\nクリーチャー1体の攻撃を\nこのターン中止させる。",
+          priority: "処理順: 最優先で即座に宣言",
+          url: "https://dm.takaratomy.co.jp/rule/qa/"
+        },
+        blocker: {
+          title: "ブロッカー",
+          desc: "相手クリーチャーが攻撃する時、\nこのクリーチャーをタップして\n攻撃対象を自身に変更できる。\n(アタック・チャンス等の後)",
+          priority: "処理順: 攻撃クリーチャー効果発動後",
+          url: "https://dm.takaratomy.co.jp/rule/qa/"
+        }
+      };
+
+      function switchTerm(key) {
+        document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+        document.getElementById(`btn-${key}`).classList.add('active');
+
+        const data = terms[key];
+        document.getElementById('ar-title').setAttribute('value', data.title);
+        document.getElementById('ar-desc').setAttribute('value', data.desc);
+        document.getElementById('ar-priority').setAttribute('value', data.priority);
+        document.getElementById('rule-link').href = data.url;
+      }
+    </script>
+  </body>
+</html>
