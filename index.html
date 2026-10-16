@@ -21,26 +21,14 @@
         border-radius: 12px;
         z-index: 1000;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
       }
-      .btn-group {
-        display: flex;
-        gap: 6px;
-        margin: 8px 0;
-      }
-      button {
-        flex: 1;
-        padding: 8px 4px;
-        border: 1px solid #4a5568;
-        border-radius: 6px;
-        background: #2d3748;
-        color: #fff;
-        font-size: 11px;
-        cursor: pointer;
-      }
-      button.active {
-        background: #3182ce;
-        border-color: #63b3ed;
+      #status-text {
+        font-size: 13px;
         font-weight: bold;
+        color: #fbbf24;
+        text-align: center;
+        margin-bottom: 8px;
       }
       .link-btn {
         display: block;
@@ -48,7 +36,7 @@
         background: #e53e3e;
         color: white;
         text-decoration: none;
-        padding: 7px;
+        padding: 8px;
         border-radius: 6px;
         font-size: 12px;
         font-weight: bold;
@@ -56,19 +44,16 @@
     </style>
   </head>
   <body style="margin: 0; overflow: hidden;">
-    <!-- 日本語テクスチャ生成用 Canvas（非表示） -->
+    <!-- 3つの用語描画用 Canvas（非表示） -->
     <div style="display: none;">
-      <canvas id="textCanvas" width="512" height="384"></canvas>
+      <canvas id="canvas-trigger" width="512" height="384"></canvas>
+      <canvas id="canvas-guard" width="512" height="384"></canvas>
+      <canvas id="canvas-blocker" width="512" height="384"></canvas>
     </div>
 
-    <!-- 操作パネル（IoT盤面シミュレーション） -->
+    <!-- 下部ステータス & 裁定リンクパネル -->
     <div id="ui-panel">
-      <div style="font-size: 12px; font-weight: bold;">【デュエマサポーター】盤面状況 / 用語選択</div>
-      <div class="btn-group">
-        <button id="btn-st" class="active" onclick="switchTerm('st')">S・トリガー</button>
-        <button id="btn-gs" onclick="switchTerm('gs')">G・ストライク</button>
-        <button id="btn-blocker" onclick="switchTerm('blocker')">ブロッカー</button>
-      </div>
+      <div id="status-text">📷 カードのマーカーをかざしてください</div>
       <a id="rule-link" class="link-btn" href="https://dm.takaratomy.co.jp/rule/qa/" target="_blank">
         公式ルール・裁定ページを開く ↗
       </a>
@@ -76,27 +61,42 @@
 
     <!-- AR空間 -->
     <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
-      <!-- オリジナルマーカーの指定 -->
-      <a-marker preset="custom" type="pattern" url="duema.patt">
-        <!-- カード本体の位置枠（カードが隠れない基準） -->
-        <a-plane position="0 0 0" rotation="-90 0 0" width="1.0" height="1.4" color="#4a5568" opacity="0.3"></a-plane>
 
-        <!-- カード右側に浮かぶ日本語解説パネル (X軸方向に1.5ずらして配置) -->
-        <a-plane id="ar-info-plane" 
-                 position="1.5 0.1 0" 
-                 rotation="-90 0 0" 
-                 width="1.8" 
-                 height="1.35" 
-                 material="src: #textCanvas; transparent: true;">
-        </a-plane>
+      <!-- 1. シールド・トリガー用マーカー -->
+      <a-marker id="marker-trigger" preset="custom" type="pattern" url="pattern-trigger.patt">
+        <!-- カード本体の配置枠（半透明） -->
+        <a-plane position="0 0 0" rotation="-90 0 0" width="1.0" height="1.4" color="#4a5568" opacity="0.3"></a-plane>
+        <!-- カード右側に浮かぶAR解説パネル -->
+        <a-plane id="plane-trigger" position="1.5 0.1 0" rotation="-90 0 0" width="1.8" height="1.35" 
+                 material="src: #canvas-trigger; transparent: true;"></a-plane>
+      </a-marker>
+
+      <!-- 2. ガード・ストライク用マーカー -->
+      <a-marker id="marker-guard" preset="custom" type="pattern" url="pattern-guard.patt">
+        <!-- カード本体の配置枠（半透明） -->
+        <a-plane position="0 0 0" rotation="-90 0 0" width="1.0" height="1.4" color="#4a5568" opacity="0.3"></a-plane>
+        <!-- カード右側に浮かぶAR解説パネル -->
+        <a-plane id="plane-guard" position="1.5 0.1 0" rotation="-90 0 0" width="1.8" height="1.35" 
+                 material="src: #canvas-guard; transparent: true;"></a-plane>
+      </a-marker>
+
+      <!-- 3. ブロッカー用マーカー -->
+      <a-marker id="marker-blocker" preset="custom" type="pattern" url="pattern-blocker.patt">
+        <!-- カード本体の配置枠（半透明） -->
+        <a-plane position="0 0 0" rotation="-90 0 0" width="1.0" height="1.4" color="#4a5568" opacity="0.3"></a-plane>
+        <!-- カード右側に浮かぶAR解説パネル -->
+        <a-plane id="plane-blocker" position="1.5 0.1 0" rotation="-90 0 0" width="1.8" height="1.35" 
+                 material="src: #canvas-blocker; transparent: true;"></a-plane>
       </a-marker>
 
       <a-entity camera></a-entity>
     </a-scene>
 
     <script>
-      const terms = {
-        st: {
+      const termsData = {
+        trigger: {
+          canvasId: 'canvas-trigger',
+          planeId: 'plane-trigger',
           title: "シールド・トリガー (S・トリガー)",
           lines: [
             "このカードを自分のシールドゾーンから",
@@ -106,7 +106,9 @@
           priority: "処理順: G・ストライク宣言の直後",
           url: "https://dm.takaratomy.co.jp/rule/qa/"
         },
-        gs: {
+        guard: {
+          canvasId: 'canvas-guard',
+          planeId: 'plane-guard',
           title: "ガード・ストライク (G・ストライク)",
           lines: [
             "このカードを自分のシールドゾーンから",
@@ -118,6 +120,8 @@
           url: "https://dm.takaratomy.co.jp/rule/qa/"
         },
         blocker: {
+          canvasId: 'canvas-blocker',
+          planeId: 'plane-blocker',
           title: "ブロッカー",
           lines: [
             "このクリーチャーをタップして、",
@@ -129,10 +133,9 @@
         }
       };
 
-      // Canvasに日本語を描画し、3Dテクスチャを更新
-      function renderText(termKey) {
-        const data = terms[termKey];
-        const canvas = document.getElementById('textCanvas');
+      // 各Canvasに日本語テキストを描画
+      function drawPanel(item) {
+        const canvas = document.getElementById(item.canvasId);
         const ctx = canvas.getContext('2d');
 
         // 背景
@@ -147,7 +150,7 @@
         // タイトル
         ctx.fillStyle = '#60a5fa';
         ctx.font = 'bold 26px sans-serif';
-        ctx.fillText(data.title, 24, 52);
+        ctx.fillText(item.title, 24, 52);
 
         // 区切り線
         ctx.strokeStyle = '#334155';
@@ -161,20 +164,20 @@
         ctx.fillStyle = '#f8fafc';
         ctx.font = '20px sans-serif';
         let y = 115;
-        data.lines.forEach(line => {
+        item.lines.forEach(line => {
           ctx.fillText(line, 24, y);
           y += 36;
         });
 
-        // 優先度・処理順タグ枠
+        // 処理順・優先度タグ
         ctx.fillStyle = '#dc2626';
         ctx.fillRect(20, canvas.height - 68, canvas.width - 40, 46);
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 20px sans-serif';
-        ctx.fillText(data.priority, 32, canvas.height - 38);
+        ctx.fillText(item.priority, 32, canvas.height - 38);
 
-        // 3Dパネルのテクスチャを即時更新
-        const plane = document.getElementById('ar-info-plane');
+        // テクスチャ更新フラグ
+        const plane = document.getElementById(item.planeId);
         if (plane && plane.getObject3D('mesh')) {
           const mat = plane.getObject3D('mesh').material;
           if (mat.map) {
@@ -183,18 +186,32 @@
         }
       }
 
-      function switchTerm(key) {
-        document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
-        document.getElementById(`btn-${key}`).classList.add('active');
-        document.getElementById('rule-link').href = terms[key].url;
-        renderText(key);
+      // マーカー検出イベント設定
+      function setupMarkerEvents() {
+        const statusEl = document.getElementById('status-text');
+        const ruleLink = document.getElementById('rule-link');
+
+        ['trigger', 'guard', 'blocker'].forEach(key => {
+          const item = termsData[key];
+          const markerEl = document.getElementById(`marker-${key}`);
+
+          markerEl.addEventListener('markerFound', () => {
+            statusEl.textContent = `✅ 認識中: ${item.title}`;
+            statusEl.style.color = '#4ade80';
+            ruleLink.href = item.url;
+          });
+
+          markerEl.addEventListener('markerLost', () => {
+            statusEl.textContent = '📷 カードのマーカーをかざしてください';
+            statusEl.style.color = '#fbbf24';
+          });
+        });
       }
 
-      // 初回ロード時にS・トリガーを描画
       window.onload = () => {
-        setTimeout(() => {
-          renderText('st');
-        }, 500);
+        // 3枚のテクスチャを初期描画
+        Object.values(termsData).forEach(item => drawPanel(item));
+        setupMarkerEvents();
       };
     </script>
   </body>
