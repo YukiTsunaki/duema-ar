@@ -76,7 +76,8 @@
 
     <!-- AR空間 -->
     <a-scene embedded arjs="sourceType: webcam; debugUIEnabled: false;">
-      <a-marker preset="hiro">
+      <!-- オリジナルマーカーの指定 -->
+      <a-marker preset="custom" type="pattern" url="duema.patt">
         <!-- カード本体の位置枠（カードが隠れない基準） -->
         <a-plane position="0 0 0" rotation="-90 0 0" width="1.0" height="1.4" color="#4a5568" opacity="0.3"></a-plane>
 
